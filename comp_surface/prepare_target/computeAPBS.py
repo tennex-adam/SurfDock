@@ -9,7 +9,7 @@ import random
 
 """ 
 Modified from:
-computeAPBS.py: Wrapper function to compute the Poisson Boltzmann electrostatics for a surface using APBS.
+computeAPBS.py: Wrapperp function to compute the Poisson Boltzmann electrostatics for a surface using APBS.
 Pablo Gainza - LPDI STI EPFL 2019
 """
 
@@ -17,6 +17,25 @@ def computeAPBS(vertices, pdb_file, tmp_file_base,clear=False):
     """
         Calls APBS, pdb2pqr, and multivalue and returns the charges per vertex
     """    
+    # Clean the PDB file by removing problematic REMARK lines
+    cleaned_pdb = os.path.abspath(tmp_file_base + "_cleaned.pdb")
+    with open(pdb_file, 'r') as f_in, open(cleaned_pdb, 'w') as f_out:
+        for line in f_in:
+            if not line.startswith('REMARK'):
+                f_out.write(line)
+    
+    # Create working directory
+    work_dir = os.path.dirname(os.path.abspath(tmp_file_base))
+    filename_base = os.path.basename(tmp_file_base)
+    cleaned_pdb_name = filename_base + "_cleaned.pdb"
+    
+    # Create cleaned PDB in working directory directly
+    work_pdb = os.path.join(work_dir, cleaned_pdb_name)
+    with open(pdb_file, 'r') as f_in, open(work_pdb, 'w') as f_out:
+        for line in f_in:
+            if not line.startswith('REMARK'):
+                f_out.write(line)
+    
     if not clear:
         pdb2pqr = pdb2pqr_bin + " --ff=parse --whitespace --noopt --apbs-input %s %s"# + tempfile.mktemp() 
         # pdb2pqr = pdb2pqr_bin + " --clean --whitespace --noopt --apbs-input %s %s"# + tempfile.mktemp() # 上一行由于确实太多办法计算表面的时候再用这个
