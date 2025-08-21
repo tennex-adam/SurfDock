@@ -220,9 +220,11 @@ def compute_inp_surface(target_filename, ligand_filename,out_dir = None, dist_th
                 si=si)
         
         return 0
-    except:
+    except Exception as e:
+        print(f"ERROR processing {target_filename}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return target_filename
-
     
 if __name__ == "__main__":
     from joblib import delayed,Parallel
