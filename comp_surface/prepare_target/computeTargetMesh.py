@@ -11,9 +11,11 @@ warnings.filterwarnings("ignore")
 from IPython.utils import io
 from sklearn.neighbors import KDTree
 from scipy.spatial import distance
+from global_vars import deepdock_repo_path
 
-sys.path.append('/home/caoduanhua/DeepDock')
+sys.path.append(deepdock_repo_path)
 import deepdock
+# masif is a submodule of DeepDock
 sys.path.insert(0, deepdock.__path__[0]+'/masif/source')
 
 from default_config.masif_opts import masif_opts
