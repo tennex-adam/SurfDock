@@ -93,8 +93,7 @@ CUDA Version: 12.3
 **All commands below should be run from the root directory of the SurfDock repository unless otherwise specified.**
 
 ```bash
-conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
-conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+export CONDA_PLUGINS_AUTO_ACCEPT_TOS=yes
 conda create -y -n SurfDock python==3.10
 conda activate SurfDock
 conda install -y --channel=https://conda.anaconda.org/conda-forge --channel=https://conda.anaconda.org/pytorch --channel=https://conda.anaconda.org/pyg mamba && conda clean -ya
