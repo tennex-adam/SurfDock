@@ -27,6 +27,44 @@ If you have any question, feel free to open an issue or reach out to us: [caodh@
 
 ![Alt Text](figs/docking.gif)
 
+## Prerequisites
+
+Before you begin, please ensure you've met the following requirements:
+
+- Conda Installed ([Instructions](https://docs.conda.io/en/latest/))
+- NVIDIA GPU with CUDA support (CUDA 12.1)
+- This repository cloned to your local machine in your home directory (e.g., `~/SurfDock`)
+
+        # Change directory to your home directory
+        cd
+        # Clone the repository
+        git clone
+- DeepDock repository cloned to your local machine and submodules initialized.
+
+        # Change directory to your home directory
+        cd
+        # Clone the repository
+        git clone https://github.com/OptiMaL-PSE-Lab/DeepDock
+        # Change directory to the cloned repository
+        cd DeepDock
+        # Initialize submodules (masif specifically)
+        git submodule update --init
+
+- ESM repository cloned to your local machine **inside** the SurfDock directory.
+
+        # Change directory to your SurfDock directory
+        cd ~/SurfDock
+        # Clone the repository
+        git clone https://github.com/facebookresearch/esm
+
+- Update the paths in the `global_vars.py` file located at `~SurfDock/comp_surface/prepare_target/default_config/global_vars.py` to point to the correct locations of the cloned repositories on your local filesystem.
+
+        # Open the global_vars.py file in a text editor
+        vi ~/SurfDock/comp_surface/prepare_target/default_config/global_vars.py
+        # Update the paths to your local paths
+        deepdock_repo_path = "/path/to/your/DeepDock"
+        surfdock_repo_path = "/path/to/your/SurfDock"
+        # Save and exit the editor
 
 ## Section 1 : Setup Environment
 You can follow the instructions to setup the environment
@@ -52,16 +90,23 @@ CUDA Version: 12.3
 
 **Please select the appropriate version of the software based on your hardware during installation (like pytorch & cuda et.al.)**
 
+**All commands below should be run from the root directory of the SurfDock repository unless otherwise specified.**
+
 ```bash
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 conda create -y -n SurfDock python==3.10
-source /opt/conda/bin/activate SurfDock
+conda activate SurfDock
 conda install -y --channel=https://conda.anaconda.org/conda-forge --channel=https://conda.anaconda.org/pytorch --channel=https://conda.anaconda.org/pyg mamba && conda clean -ya
 mamba install -y pytorch==2.2.2 pytorch-cuda=12.1 -c pytorch -c nvidia
 mamba install -y --channel=https://conda.anaconda.org/conda-forge --channel=https://conda.anaconda.org/pytorch --channel=https://conda.anaconda.org/pyg numpy==1.24.4 scipy==1.8.1 pandas==2.1.2 &&conda clean -ya
 mamba install -y --channel=https://conda.anaconda.org/conda-forge --channel=https://conda.anaconda.org/pytorch --channel=https://conda.anaconda.org/pyg openff-toolkit==0.15.2 openmm==8.1.1 openmmforcefields==0.12.0 pdbfixer==1.9 && conda clean -ya
 mamba install -y --channel=https://conda.anaconda.org/conda-forge --channel=https://conda.anaconda.org/pytorch --channel=https://conda.anaconda.org/pyg babel==2.13.1 biopandas==0.4.1 openbabel==3.1.1 plyfile==1.0.1 prody==2.4.0 torch-ema==0.3 torchmetrics==1.2.1 && conda clean -ya
-mamba install -y pyg -c pyg --freeze-installed
-pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.2.0+cu121.html
+# Changed: Install specific compatible versions instead of latest
+pip install torch-geometric==2.4.0 --no-deps
+pip install torch_cluster==1.6.3+pt22cu121 torch_scatter==2.1.2+pt22cu121 torch_sparse==0.6.18+pt22cu121 torch_spline_conv==1.2.2+pt22cu121 -f https://data.pyg.org/whl/torch-2.2.0+cu121.html
+# Added: Pin safetensors version
+pip install safetensors==0.3.3
 pip install -U --no-cache-dir spyrmsd scikit-learn==1.3.2 accelerate==0.15.0 biopython==1.79 e3nn==0.5.1 huggingface-hub==0.17.3 mdanalysis==2.4.0 posebusters==0.2.7 rdkit==2023.3.1 tokenizers==0.13.3 transformers==4.29.2 wandb==0.16.1
 pip install pymesh
 pip install https://github.com/nuvolos-cloud/PyMesh/releases/download/v0.3.1/pymesh2-0.3.1-cp310-cp310-linux_x86_64.whl
@@ -82,8 +127,7 @@ Since we also need the surface information about the protein
 We need to install APBS-3.0.0, pdb2pqr-2.1.1 on the computer. 
 For the convenience of everyone, I packaged the relevant software in APBS_PDB2PQR.tar.gz and put it in the /comp_surface/tools folder. 
 ```bash
-cd ~/SurfDock/comp_surface/tools
-tar -zxvf APBS_PDB2PQR.tar.gz
+tar -zxvf comp_surface/tools/APBS_PDB2PQR.tar.gz
 ```
 Then set the absolute path of msms_bin, apbs_bin, pdb2pqr_bin, and multivalue_bin directly in the ~/comp_surface/prepare_target/default_config/global_vars.py 
 
