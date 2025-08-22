@@ -6,9 +6,6 @@ set -e
 ## Please set the GPU devices you want to use
 gpu_string="0"
 
-# This script is used to run SurfDock on test samples
-source ~/miniforge/bin/activate SurfDock
-
 echo "Current conda environment: $CONDA_DEFAULT_ENV"
 
 # Check GPU availability
@@ -70,8 +67,7 @@ cat << 'EOF'
                                                                                                        
   ____  _     _ _   _ _   _ ____  _     _____ ____  _   _ ____  _     _     ____  _     ____  _        _ 
 EOF
-# This script is used to run SurfDock on test samples
-source ~/miniforge3/bin/activate SurfDock
+
 path=$(readlink -f "$0")
 SurfDockdir="$(dirname "$(dirname "$(dirname "$path")")")"
 SurfDockdir=${SurfDockdir}
