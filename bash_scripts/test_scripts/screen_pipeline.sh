@@ -1,4 +1,64 @@
 #!/bin/bash
+
+# Exit on any error
+set -e
+
+## Please set the GPU devices you want to use
+gpu_string="0"
+
+# This script is used to run SurfDock on test samples
+source ~/miniforge/bin/activate SurfDock
+
+echo "Current conda environment: $CONDA_DEFAULT_ENV"
+
+# Check GPU availability
+echo "Checking GPU availability..."
+nvidia-smi --list-gpus
+echo "Available GPUs according to nvidia-smi:"
+nvidia-smi -L
+
+# Function to execute commands and check return codes
+execute_command() {
+    local cmd="$1"
+    local description="$2"
+    echo "=========================================="
+    echo "Executing: $description"
+    echo "Command: $cmd"
+    echo "=========================================="
+    eval "$cmd"
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "ERROR: Command failed with exit code $exit_code"
+        echo "Failed command: $cmd"
+        exit $exit_code
+    fi
+    echo "SUCCESS: $description completed"
+    echo "----------------------------------------"
+}
+
+# Function to validate GPU availability
+validate_gpu() {
+    local gpu_id="$1"
+    echo "Validating GPU $gpu_id..."
+
+    if ! command -v nvidia-smi &> /dev/null; then
+        echo "ERROR: nvidia-smi not found. No GPU support available."
+        exit 1
+    fi
+
+    local gpu_count=$(nvidia-smi --list-gpus | wc -l)
+    echo "Total GPUs available: $gpu_count"
+
+    if [ "$gpu_id" -ge "$gpu_count" ]; then
+        echo "ERROR: GPU $gpu_id does not exist. Available GPUs: 0-$((gpu_count-1))"
+        echo "Available GPUs:"
+        nvidia-smi -L
+        exit 1
+    fi
+
+    echo "GPU $gpu_id is available."
+}
+
 cat << 'EOF'
   ____  _     _ _   _ _   _ ____  _     _____ ____  _   _ ____  _     _     ____  _     ____  _        _ 
   ____              __ ____             _      ____       _         __     __            _             
@@ -10,7 +70,6 @@ cat << 'EOF'
                                                                                                        
   ____  _     _ _   _ _   _ ____  _     _____ ____  _   _ ____  _     _     ____  _     ____  _        _ 
 EOF
-                                                                                                       
 # This script is used to run SurfDock on test samples
 source ~/miniforge3/bin/activate SurfDock
 path=$(readlink -f "$0")
@@ -26,11 +85,15 @@ model_temp="$(dirname "$(dirname "$(dirname "$path")")")"
 #------------------------------------------------------------------------------------------------#
 
 export precomputed_arrays="${temp}/precomputed/precomputed_arrays"
-## Please set the GPU devices you want to use
-gpu_string="7"
 echo "Using GPU devices: ${gpu_string}"
 IFS=',' read -ra gpu_array <<< "$gpu_string"
 NUM_GPUS=${#gpu_array[@]}
+
+# Validate each GPU exists
+for gpu_id in "${gpu_array[@]}"; do
+    validate_gpu "$gpu_id"
+done
+
 export CUDA_VISIBLE_DEVICES=${gpu_string}
 ## Please set the main Parameters
 main_process_port=2957${gpu_array[-1]}
@@ -62,41 +125,34 @@ if [ "$target_have_processed" = true ]; then
 else
   echo "Processing target structure with OpenBabel..."
   export BABEL_LIBDIR=~/miniforge3/envs/SurfDock/lib/openbabel/3.1.0
-  command=`
-  python ${SurfDockdir}/comp_surface/protein_process/openbabel_reduce_openbabel.py \
+  command="python ${SurfDockdir}/comp_surface/protein_process/openbabel_reduce_openbabel.py \
   --data_path ${data_dir} \
-  --save_path ${surface_out_dir}`
-  state=$command
+  --save_path ${surface_out_dir}"
+  execute_command "$command" "Processing target structure with OpenBabel"
 fi
 
 #------------------------------------------------------------------------------------------------#
 #----------------------------- Step2 : Compute Target Surface -----------------------------------#
 #------------------------------------------------------------------------------------------------#
 cd $surface_out_dir
-command=`
-python ${SurfDockdir}/comp_surface/prepare_target/computeTargetMesh_test_samples.py \
+command="python ${SurfDockdir}/comp_surface/prepare_target/computeTargetMesh_test_samples.py \
 --data_dir ${data_dir} \
---out_dir ${surface_out_dir} \
-`
-state=$command
+--out_dir ${surface_out_dir}"
+execute_command "$command" "Computing target surface"
 
 #------------------------------------------------------------------------------------------------#
 #--------------------------------  Step3 : Get Input CSV File -----------------------------------#
 #------------------------------------------------------------------------------------------------#
-
-command=` python \
-${SurfDockdir}/inference_utils/construct_csv_input.py \
+command="python ${SurfDockdir}/inference_utils/construct_csv_input.py \
 --data_dir ${data_dir} \
 --surface_out_dir ${surface_out_dir} \
 --output_csv_file ${out_csv_file} \
---Screen_ligand_library_file ${Screen_lib_path} \
-`
-state=$command
+--Screen_ligand_library_file ${Screen_lib_path}"
+execute_command "$command" "Creating input CSV file"
 
 #------------------------------------------------------------------------------------------------#
 #--------------------------------  Step4 : Get Pocket ESM Embedding  ----------------------------#
 #------------------------------------------------------------------------------------------------#
-
 esm_dir=${SurfDockdir}/esm
 sequence_out_file="${esmbedding_dir}/test_samples.fasta"
 protein_pocket_csv=${out_csv_file}
@@ -104,34 +160,32 @@ full_protein_esm_embedding_dir="${esmbedding_dir}/esm_embedding_output"
 pocket_emb_save_dir="${esmbedding_dir}/esm_embedding_pocket_output"
 pocket_emb_save_to_single_file="${esmbedding_dir}/esm_embedding_pocket_output_for_train/esm2_3billion_pdbbind_embeddings.pt"
 # get faste  sequence
-command=`python ${SurfDockdir}/datasets/esm_embedding_preparation.py \
+command="python ${SurfDockdir}/datasets/esm_embedding_preparation.py \
 --out_file ${sequence_out_file} \
---protein_ligand_csv ${protein_pocket_csv}`
-state=$command
-# esm embedding preprateion
+--protein_ligand_csv ${protein_pocket_csv}"
+execute_command "$command" "Generating FASTA sequence file"
 
-command=`python ${esm_dir}/scripts/extract.py \
-"esm2_t33_650M_UR50D" \
+command="python ${esm_dir}/scripts/extract.py \
+\"esm2_t33_650M_UR50D\" \
 ${sequence_out_file} \
 ${full_protein_esm_embedding_dir} \
 --repr_layers 33 \
---include "per_tok" \
---truncation_seq_length 4096`
-state=$command
-
+--include \"per_tok\" \
+--truncation_seq_length 4096"
+execute_command "$command" "Extracting ESM embeddings"
 
 # map pocket esm embedding
-command=`python ${SurfDockdir}/datasets/get_pocket_embedding.py \
+command="python ${SurfDockdir}/datasets/get_pocket_embedding.py \
 --protein_pocket_csv ${protein_pocket_csv} \
 --embeddings_dir ${full_protein_esm_embedding_dir} \
---pocket_emb_save_dir ${pocket_emb_save_dir}`
-state=$command
+--pocket_emb_save_dir ${pocket_emb_save_dir}"
+execute_command "$command" "Mapping pocket ESM embeddings"
 
 # save pocket esm embedding to single file 
-command=`python ${SurfDockdir}/datasets/esm_pocket_embeddings_to_pt.py \
+command="python ${SurfDockdir}/datasets/esm_pocket_embeddings_to_pt.py \
 --esm_embeddings_path ${pocket_emb_save_dir} \
---output_path ${pocket_emb_save_to_single_file}`
-state=$command
+--output_path ${pocket_emb_save_to_single_file}"
+execute_command "$command" "Saving pocket embeddings to single file"
 
 #------------------------------------------------------------------------------------------------#
 #------------------------  Step5 : Start Sampling Ligand Confromers  ----------------------------#
@@ -149,7 +203,7 @@ for i in ${dist_arrays[@]}
 do
 mdn_dist_threshold_test=${i}
 
-command=`accelerate launch \
+command="accelerate launch \
 --multi_gpu \
 --main_process_port ${main_process_port} \
 --num_processes ${NUM_GPUS} \
@@ -172,32 +226,24 @@ ${SurfDockdir}/inference_accelerate.py \
 --head_index  0 \
 --tail_index 10000 \
 --inference_mode Screen \
---wandb_dir ${temp}/docking_result/test_workdir`
-state=$command
+--wandb_dir ${temp}/docking_result/test_workdir"
+execute_command "$command" "Running diffusion model inference for ligand conformer sampling"
 done
 #------------------------------------------------------------------------------------------------#
 #---------------- Step6 : Start Rescoring the Pose For Screening  -----------------#
 #------------------------------------------------------------------------------------------------#
-echo '---------------- Step4 : Start Rescoring the Pose For Screening  -----------------'
-# project_name='SurfDock_Screen_samples/repeat_zero'
-
-# surface_out_dir=${SurfDockdir}/data/Screen_sample_dirs/${project_name}/test_samples_8A_surface
-# data_dir=${SurfDockdir}/data/Screen_sample_dirs/test_samples
 out_csv_file=${out_csv_dir}/score_inplace.csv
 
-command=` python \
-${SurfDockdir}/inference_utils/construct_csv_input.py \
+command="python ${SurfDockdir}/inference_utils/construct_csv_input.py \
 --data_dir ${data_dir} \
 --surface_out_dir ${surface_out_dir} \
 --output_csv_file ${out_csv_file} \
 --Screen_ligand_library_file ${Screen_lib_path} \
 --is_docking_result_dir \
---docking_result_dir ${docking_out_dir} \
-`
-state=$command
+--docking_result_dir ${docking_out_dir}"
+execute_command "$command" "Creating CSV file for pose rescoring"
 
 confidence_model_base_dir=${model_temp}/model_weights/screen
-
 test_data_csv=${out_csv_file}
 
 version=6
@@ -207,23 +253,41 @@ do
 mdn_dist_threshold_test=${i}
 echo mdn_dist_threshold_test : ${mdn_dist_threshold_test}
 
-command=`accelerate launch \
---multi_gpu \
---main_process_port ${main_process_port} \
---num_processes 1 \
-${SurfDockdir}/evaluate_score_in_place.py \
---data_csv ${test_data_csv} \
---confidence_model_dir ${confidence_model_base_dir} \
---confidence_ckpt best_model.pt \
---model_version version6 \
---mdn_dist_threshold_test ${mdn_dist_threshold_test} \
---esm_embeddings_path ${protein_embedding} \
---run_name ${project_name}_test_dist_${mdn_dist_threshold_test} \
---project ${project_name} \
---out_dir ${docking_out_dir} \
---batch_size 40 \
---wandb_dir ${temp}/wandb/test_workdir`
-state=$command
+# Check if GPUs are available for this step
+if command -v nvidia-smi &> /dev/null && nvidia-smi > /dev/null 2>&1; then
+    echo "GPUs detected, using accelerate with GPU support"
+    command="accelerate launch \
+    --main_process_port ${main_process_port} \
+    --num_processes 1 \
+    ${SurfDockdir}/evaluate_score_in_place.py \
+    --data_csv ${test_data_csv} \
+    --confidence_model_dir ${confidence_model_base_dir} \
+    --confidence_ckpt best_model.pt \
+    --model_version version6 \
+    --mdn_dist_threshold_test ${mdn_dist_threshold_test} \
+    --esm_embeddings_path ${protein_embedding} \
+    --run_name ${project_name}_test_dist_${mdn_dist_threshold_test} \
+    --project ${project_name} \
+    --out_dir ${docking_out_dir} \
+    --batch_size 40 \
+    --wandb_dir ${temp}/wandb/test_workdir"
+    execute_command "$command" "Running pose rescoring with GPU acceleration"
+else
+    echo "No GPUs detected, running without accelerate"
+    command="python ${SurfDockdir}/evaluate_score_in_place.py \
+    --data_csv ${test_data_csv} \
+    --confidence_model_dir ${confidence_model_base_dir} \
+    --confidence_ckpt best_model.pt \
+    --model_version version6 \
+    --mdn_dist_threshold_test ${mdn_dist_threshold_test} \
+    --esm_embeddings_path ${protein_embedding} \
+    --run_name ${project_name}_test_dist_${mdn_dist_threshold_test} \
+    --project ${project_name} \
+    --out_dir ${docking_out_dir} \
+    --batch_size 40 \
+    --wandb_dir ${temp}/wandb/test_workdir"
+    execute_command "$command" "Running pose rescoring without GPU acceleration"
+fi
 done
 
 cat << 'EOF'

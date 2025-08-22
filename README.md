@@ -66,6 +66,14 @@ Before you begin, please ensure you've met the following requirements:
         surfdock_repo_path = "/path/to/your/SurfDock"
         # Save and exit the editor
 
+- Update the `gpu_string` line in the `screen_pipeline.py` file located at `~SurfDock/bash_scripts/test_scripts/screen_pipline.sh` to use the desired GPU. Use the `nvidia-smi` command to check available GPUs and their IDs.
+
+        # Open the screen_pipeline.sh file in a text editor
+        vi ~/SurfDock/bash_scripts/test_scripts/screen_pipeline.sh
+        # Update the gpu_string variable
+        gpu_string="0"  # Change "0" to the ID of your desired GPU
+        # Save and exit the editor
+
 ## Section 1 : Setup Environment
 You can follow the instructions to setup the environment
 Our test env Info bellow
